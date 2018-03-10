@@ -374,11 +374,11 @@ void usbHandleVendorReq(u8 *buf)
 	int ret_state;
 	USB_DeviceRequest *dreq = (USB_DeviceRequest *)buf;
 	switch (dreq->bRequest) {
-	case VR_GET_CUP_INFO:
-		ret_state=GET_CUP_INFO_Handle();
+	case VR_GET_CPU_INFO:
+		ret_state=GET_CPU_INFO_Handle();
 		break;
-	case VR_SET_DATA_ADDERSS:
-		ret_state=SET_DATA_ADDERSS_Handle(buf);
+	case VR_SET_DATA_ADDRESS:
+		ret_state=SET_DATA_ADDRESS_Handle(buf);
 		break;
 	case VR_SET_DATA_LENGTH:
 		ret_state=SET_DATA_LENGTH_Handle(buf);

@@ -16,7 +16,7 @@ OBJCOPY	:= mipsel-linux-objcopy
 NM	:= mipsel-linux-nm
 OBJDUMP	:= mipsel-linux-objdump
 
-CFLAGS	:= -mips32 -O2  -FPIC \
+CFLAGS	:= -mips32 -O2 -fPIC \
 	   -fno-exceptions -ffunction-sections \
 	   -fomit-frame-pointer -msoft-float -G 0
 

@@ -80,7 +80,7 @@ void config_hand()
 #endif
 }
 
-int GET_CUP_INFO_Handle()
+int GET_CPU_INFO_Handle()
 {
 	char temp1[8]="Boot4740",temp2[8]="Boot4750";
 //	dprintf("\n GET_CPU_INFO!");
@@ -92,7 +92,7 @@ int GET_CUP_INFO_Handle()
 	return ERR_OK; 
 }
 	       
-int SET_DATA_ADDERSS_Handle(u8 *buf)
+int SET_DATA_ADDRESS_Handle(u8 *buf)
 {
 	USB_DeviceRequest *dreq = (USB_DeviceRequest *)buf;
 	start_addr=(((u32)dreq->wValue)<<16)+(u32)dreq->wIndex;

@@ -2,7 +2,7 @@ OUTPUT_ARCH(mips)
 ENTRY(_start)
 MEMORY
 {
-	ram	: ORIGIN = 0x80000000 , LENGTH = 3M
+	ram	: ORIGIN = 0x80000000 , LENGTH = 4M
 }
 
 SECTIONS
