@@ -71,10 +71,8 @@ int programStart2(libusb_device_handle *dev, uint32_t entry)
 				entry >> 16, entry & 0xffff, 0, 0, 0) != 0;
 }
 
-int uploadFile(libusb_device_handle *dev, unsigned long addr, size_t size, const char *file)
+int readMem(libusb_device_handle *dev, unsigned long addr, size_t size, void *p)
 {
-	printf("Uploading from 0x%08lx of size %lu to file %s...\n", addr, size, file);
-
 	// Set start address
 	if (setAddress(dev, addr)) {
 		fprintf(stderr, "Error setting data address 0x%08lx\n", addr);
@@ -87,18 +85,32 @@ int uploadFile(libusb_device_handle *dev, unsigned long addr, size_t size, const
 		return 2;
 	}
 
+	// Bulk transfer
+	int len = 0, err;
+	if ((err = libusb_bulk_transfer(dev, EP_IN, p, size, &len, 5000)) || len != size) {
+		fprintf(stderr, "Error transferring data %u: %s\n", len, libusb_strerror(err));
+		return 3;
+	}
+
+	return 0;
+}
+
+int uploadFile(libusb_device_handle *dev, unsigned long addr, size_t size, const char *file)
+{
+	printf("Uploading from 0x%08lx of size %lu to file %s...\n", addr, size, file);
+
 	// Open file for write
 	int fd = open(file, O_CREAT | O_RDWR);
 	if (fd < 0) {
 		fprintf(stderr, "Error opening file: %s\n", strerror(errno));
-		return 3;
+		return 1;
 	}
 
 	// Resize file
 	if (ftruncate(fd, size)) {
 		fprintf(stderr, "Error truncating file: %s\n", strerror(errno));
 		close(fd);
-		return 4;
+		return 2;
 	}
 
 	// Memory map
@@ -106,20 +118,43 @@ int uploadFile(libusb_device_handle *dev, unsigned long addr, size_t size, const
 	if (p == MAP_FAILED) {
 		fprintf(stderr, "Error mapping file to memory: %s\n", strerror(errno));
 		close(fd);
-		return 5;
+		return 3;
 	}
 
-	// Bulk transfer
-	int len = 0, err;
-	if ((err = libusb_bulk_transfer(dev, EP_IN, p, size, &len, 1000)) || len != size) {
-		fprintf(stderr, "Error transferring data %u: %s\n", len, libusb_strerror(err));
+	if (readMem(dev, addr, size, p)) {
 		munmap(p, size);
 		close(fd);
-		return 6;
+		return 4;
 	}
 
 	munmap(p, size);
 	close(fd);
+	return 0;
+}
+
+int writeMem(libusb_device_handle *dev, unsigned long addr, size_t size, const void *p)
+{
+	// Set start address
+	if (setAddress(dev, addr)) {
+		fprintf(stderr, "Error setting data address 0x%08lx\n", addr);
+		return 1;
+	}
+
+#if 0
+	// Set data length
+	if (setLength(dev, size)) {
+		fprintf(stderr, "Error setting data length %lu\n", size);
+		return 2;
+	}
+#endif
+
+	// Bulk transfer
+	int len = 0, err;
+	if ((err = libusb_bulk_transfer(dev, EP_OUT, (void *)p, size, &len, 5000)) || len != size) {
+		fprintf(stderr, "Error transferring data: %s\n", libusb_strerror(err));
+		return 3;
+	}
+
 	return 0;
 }
 
@@ -135,25 +170,11 @@ int downloadFile(libusb_device_handle *dev, unsigned long addr, const char *file
 
 	printf("Downloading file %s of size %lu to 0x%08lx...\n", file, size, addr);
 
-	// Set start address
-	if (setAddress(dev, addr)) {
-		fprintf(stderr, "Error setting data address 0x%08lx\n", addr);
-		return 2;
-	}
-
-#if 0
-	// Set data length
-	if (setLength(dev, size)) {
-		fprintf(stderr, "Error setting data length %lu\n", size);
-		return 3;
-	}
-#endif
-
 	// Open file for read
 	int fd = open(file, O_RDONLY);
 	if (fd < 0) {
 		fprintf(stderr, "Error opening file: %s\n", strerror(errno));
-		return 4;
+		return 2;
 	}
 
 	// Memory map
@@ -161,16 +182,13 @@ int downloadFile(libusb_device_handle *dev, unsigned long addr, const char *file
 	if (p == MAP_FAILED) {
 		fprintf(stderr, "Error mapping file to memory: %s\n", strerror(errno));
 		close(fd);
-		return 5;
+		return 3;
 	}
 
-	// Bulk transfer
-	int len = 0, err;
-	if ((err = libusb_bulk_transfer(dev, EP_OUT, p, size, &len, 1000)) || len != size) {
-		fprintf(stderr, "Error transferring data: %s\n", libusb_strerror(err));
+	if (writeMem(dev, addr, size, p)) {
 		munmap(p, size);
 		close(fd);
-		return 6;
+		return 4;
 	}
 
 	munmap(p, size);
@@ -201,6 +219,26 @@ void process(libusb_device_handle *dev, int argc, char **argv)
 			if (setLength(dev, len))
 				fprintf(stderr, "Error setting data length %s\n", *argv);
 #endif
+		} else if (strcmp(*argv, "mdw") == 0) {
+			if (++argv, !--argc)
+				return;
+			unsigned long addr = strtoul(*argv, NULL, 0);
+			unsigned long value = 0;
+			if (readMem(dev, addr, 4, &value))
+				fprintf(stderr, "Error dumping memory %s\n", *argv);
+			else
+				printf("0x%08lx => 0x%08lx\n", addr, value);
+		} else if (strcmp(*argv, "mww") == 0) {
+			if (++argv, !--argc)
+				return;
+			unsigned long addr = strtoul(*argv, NULL, 0);
+			if (++argv, !--argc)
+				return;
+			unsigned long value = strtoul(*argv, NULL, 0);
+			if (writeMem(dev, addr, 4, &value))
+				fprintf(stderr, "Error writing memory %s\n", *argv);
+			else
+				printf("0x%08lx <= 0x%08lx\n", addr, value);
 		} else if (strcmp(*argv, "write") == 0) {
 			if (++argv, !--argc)
 				return;
