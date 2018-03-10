@@ -1,6 +1,12 @@
 #include "jz4750.h"
 #include "configs.h"
 
+// https://www.linux-mips.org/archives/linux-mips/2009-05/msg00310.html
+// The MIPS port no longer recognizes the h asm constraint from GCC 4.4
+#if __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 4)
+#define GCC_NO_H_CONSTRAINT
+#endif
+
 #define GCC_REG_ACCUM "$0"
 
 #define do_div64_32(res, high, low, base) ({    \
@@ -40,6 +46,24 @@
 	(res) = __quot32; \
 	__mod32; })
 
+/*
+ * __do_divu -- unsigned interger dividing
+ *
+ * handle removal of 'h' constraint in GCC 4.4
+ */
+#ifndef GCC_NO_H_CONSTRAINT    /* gcc <= 4.3*/
+#define __do_divu() ({ \
+       __asm__("divu   $0, %z2, %z3" \
+               : "=h" (__upper), "=l" (__high) \
+               : "Jr" (__high), "Jr" (__base) \
+               : GCC_REG_ACCUM); })
+
+#else          /* gcc >= 4.4 */
+#define __do_divu() ({ \
+       __upper = (unsigned long long)__high % __base; \
+       __high = (unsigned long long)__high / __base; })
+#endif
+
 #define do_div(n, base) ({ \
 	unsigned long long __quot; \
 	unsigned long __mod; \
@@ -54,10 +78,7 @@
 	__upper = __high; \
 	\
 	if (__high) \
-		__asm__("divu	$0, %z2, %z3" \
-			: "=h" (__upper), "=l" (__high) \
-			: "Jr" (__high), "Jr" (__base) \
-			: GCC_REG_ACCUM); \
+		__do_divu(); \
 	\
 	__mod = do_div64_32(__low, __upper, __low, __base); \
 	\
