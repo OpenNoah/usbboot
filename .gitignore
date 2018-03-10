@@ -1,0 +1,4 @@
+usbboot
+*.o
+*.d
+*.tar*
