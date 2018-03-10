@@ -15,7 +15,7 @@ MEMADDR	?= 0x20000000
 MEMFILE	:= random$(MEMTEST).bin
 MEMTMP	:= tmp.bin
 MEMRUN	:= sudo ./$(PRG) write $(MEMADDR) $(MEMFILE) \
-	   read $(MEMADDR) `wc -c $(MEMFILE) | awk '{print $$1}'` $(MEMTMP)
+	   read $(MEMADDR) `stat -c %s $(MEMFILE)` $(MEMTMP)
 
 CFLAGS	+= -O2 -Wall -Werror $(shell pkg-config --cflags libusb-1.0)
 CFLAGS	+= -I../../device/stage1/fw
