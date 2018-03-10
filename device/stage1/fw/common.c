@@ -1,5 +1,5 @@
-#include "jz4750.h"
 #include "configs.h"
+#include "jz4750.h"
 
 // https://www.linux-mips.org/archives/linux-mips/2009-05/msg00310.html
 // The MIPS port no longer recognizes the h asm constraint from GCC 4.4

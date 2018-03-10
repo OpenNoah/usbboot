@@ -1,17 +1,22 @@
 #ifndef _CONFIGS_H
 #define _CONFIGS_H
 
+#include <stdint.h>
+
 //Here are these common definitions
 //Once your system configration change,just modify the file
 
-#define CONFIG_NR_DRAM_BANKS	1  /* SDRAM BANK Number: 1, 2*/
 #define SDRAM_CASL		3	/* CAS latency: 2 or 3 */
 // SDRAM Timings, unit: ns
-#define SDRAM_TRAS		45	/* RAS# Active Time */
+#define SDRAM_TRAS		42	/* RAS# Active Time */
 #define SDRAM_RCD		20	/* RAS# to CAS# Delay */
 #define SDRAM_TPC		20	/* RAS# Precharge Time */
-#define SDRAM_TRWL		7	/* Write Latency Time */
-#define SDRAM_TREF	        15625	/* Refresh period: 4096 refresh cycles/64ms */
+#define SDRAM_TRWL		15	/* Write Latency Time */
+#define SDRAM_TREF	        7813	/* Refresh period: 4096 refresh cycles/64ms */
+
+typedef uint8_t u8;
+typedef uint16_t u16;
+typedef uint32_t u32;
 
 extern volatile u32 CPU_ID;
 extern volatile u8 SDRAM_BW16;
@@ -35,7 +40,7 @@ typedef struct {
 	unsigned char cpu_speed;
 	unsigned char phm_div;
 	unsigned char use_uart;
-	unsigned int  boudrate;
+	unsigned int  baudrate;
 
 	/* SDRAM args */
 	unsigned char bus_width;

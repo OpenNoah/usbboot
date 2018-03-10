@@ -4,11 +4,6 @@
 #ifndef __JZ4740_H__
 #define __JZ4740_H__
 
-typedef unsigned char u8;
-typedef unsigned short u16;
-typedef unsigned int u32;
-
-
 #ifndef __ASSEMBLY__
 #define UCOS_CSP 0
 

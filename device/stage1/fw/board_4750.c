@@ -7,8 +7,8 @@
  *
  */
 
-#include "jz4750.h"
 #include "configs.h"
+#include "jz4750.h"
 
 #define PROID_4750 0x1ed0024f
 

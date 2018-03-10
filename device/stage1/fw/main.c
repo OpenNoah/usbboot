@@ -6,8 +6,8 @@
  * Copyright (C) 2008 Ingenic Semiconductor Inc.
  *
  */
-#include "jz4740.h"
 #include "configs.h"
+#include "jz4740.h"
 
 fw_args_t * fw_args;
 volatile u32 CPU_ID;
@@ -56,7 +56,7 @@ void load_args(void)
 	PHM_DIV = fw_args->phm_div;
 	if ( fw_args->use_uart > 3 ) fw_args->use_uart = 0;
 	UART_BASE = UART0_BASE + fw_args->use_uart * 0x1000;
-	CONFIG_BAUDRATE = fw_args->boudrate;
+	CONFIG_BAUDRATE = fw_args->baudrate;
 	SDRAM_BW16 = fw_args->bus_width;
 	SDRAM_BANK4 = fw_args->bank_num;
 	SDRAM_ROW = fw_args->row_addr;
@@ -93,20 +93,11 @@ void c_main(void)
 		return;
 	}
 #if 1
-	serial_puts("Setup fw args as:\n");
-	serial_put_hex(CPU_ID);
-	serial_put_hex(CFG_EXTAL);
-	serial_put_hex(CFG_CPU_SPEED);
-	serial_put_hex(PHM_DIV);
-	serial_put_hex(fw_args->use_uart);
-	serial_put_hex(CONFIG_BAUDRATE);
-	serial_put_hex(SDRAM_BW16);
-	serial_put_hex(SDRAM_BANK4);
-	serial_put_hex(SDRAM_ROW);
-	serial_put_hex(SDRAM_COL);
-	serial_put_hex(pllout2);
-	serial_put_hex(REG_CPM_CPCCR);
-	serial_puts("Fw run finish !\n");
+	serial_puts("\nUSB boot stage 1 firmware\nBuild time: ");
+	serial_puts(__DATE__);
+	serial_puts(" ");
+	serial_puts(__TIME__);
+	serial_puts("\n");
 #endif
 }
 

@@ -7,8 +7,8 @@
  *
  */
 
-#include "jz4740.h"
 #include "configs.h"
+#include "jz4740.h"
 
 void gpio_init_4740(void)
 {

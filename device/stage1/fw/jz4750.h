@@ -7,10 +7,6 @@
 #ifndef __ASSEMBLY__
 #define UCOS_CSP 0
 
-typedef unsigned char u8;
-typedef unsigned short u16;
-typedef unsigned int u32;
-
 #if 0
 #if UCOS_CSP
 #define __KERNEL__

@@ -1,5 +1,5 @@
-#include "jz4750.h"
 #include "configs.h"
+#include "jz4750.h"
 
 extern fw_args_t * fw_args;
 

@@ -7,7 +7,7 @@
 CROSS	:= mipsel-linux-
 
 CFLAGS	:= -O2 -mips32 -fno-pic -mno-abicalls
-LDFLAGS	:= -nostdlib -EL -T target.ld 
+LDFLAGS	:= -nostdlib -EL -T target.ld --gc-sections
 
 OBJS	= head.o main.o common.o board_4740.o board_4750.o debug.o
 
