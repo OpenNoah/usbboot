@@ -18,7 +18,6 @@ fw.bin: fw.elf
 	$(CROSS)objdump -D $< > fw.dump
 	$(CROSS)objdump -h $< > fw.map
 	$(CROSS)nm -n $< > System.map
-	cp fw.bin ../../../../tools
 
 fw.elf: $(OBJS)
 	$(CROSS)ld $(LDFLAGS) $(OBJS) -o $@
