@@ -1,6 +1,12 @@
 SRC	:= main.c
 PRG	:= usbboot
-RUN	= sudo ./$(PRG)
+
+S1FILE	?= main.c
+S1ADDR	?= 0x80002000
+S1SIZE	?= $(shell wc -c $(S1FILE) | awk '{print $$1}')
+
+ARGS	?= cpu write $(S1ADDR) $(S1FILE) read $(S1ADDR) $(S1SIZE) tmp.out
+RUN	?= sudo ./$(PRG) $(ARGS)
 
 CFLAGS	+= -Wall -Werror $(shell pkg-config --cflags libusb-1.0)
 LIBS	+= $(shell pkg-config --libs libusb-1.0)
