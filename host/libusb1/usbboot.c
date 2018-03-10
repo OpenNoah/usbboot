@@ -13,6 +13,8 @@
 
 #define FW_ARGS_ADDR	0x80002008
 
+#define BLOCK_SIZE	0x00400000	// 4MiB
+
 #define VR_GET_CPU_INFO		0x00
 #define VR_SET_DATA_ADDRESS	0x01
 #define VR_SET_DATA_LENGTH	0x02
@@ -76,12 +78,23 @@ int readMem(libusb_device_handle *dev, unsigned long addr, size_t size, void *p)
 		return 2;
 	}
 
-	// Bulk transfer
-	int len = 0, err;
-	if ((err = libusb_bulk_transfer(dev, USBBOOT_EP_IN, p, size, &len, 5000)) || len != size) {
-		fprintf(stderr, "Error transferring data %u: %s\n", len, libusb_strerror(err));
-		return 3;
+	int progress = size >= BLOCK_SIZE;
+	while (size) {
+		size_t s = size >= BLOCK_SIZE ? BLOCK_SIZE : size;
+		// Bulk transfer
+		int len = 0, err;
+		if ((err = libusb_bulk_transfer(dev, USBBOOT_EP_IN, p, s, &len, 0)) || len != s) {
+			fprintf(stderr, "Error transferring data %u: %s\n", len, libusb_strerror(err));
+			return 3;
+		}
+		if (progress)
+			putchar('.');
+		fflush(stdout);
+		size -= s;
+		p += s;
 	}
+	if (progress)
+		putchar('\n');
 
 	return 0;
 }
@@ -139,12 +152,24 @@ int writeMem(libusb_device_handle *dev, unsigned long addr, size_t size, const v
 	}
 #endif
 
-	// Bulk transfer
-	int len = 0, err;
-	if ((err = libusb_bulk_transfer(dev, USBBOOT_EP_OUT, (void *)p, size, &len, 5000)) || len != size) {
-		fprintf(stderr, "Error transferring data: %s\n", libusb_strerror(err));
-		return 3;
+	// Block size of 4MiB
+	int progress = size >= BLOCK_SIZE;
+	while (size) {
+		size_t s = size >= BLOCK_SIZE ? BLOCK_SIZE : size;
+		// Bulk transfer
+		int len = 0, err;
+		if ((err = libusb_bulk_transfer(dev, USBBOOT_EP_OUT, (void *)p, s, &len, 0)) || len != s) {
+			fprintf(stderr, "Error transferring data: %s\n", libusb_strerror(err));
+			return 3;
+		}
+		if (progress)
+			putchar('.');
+		fflush(stdout);
+		size -= s;
+		p += s;
 	}
+	if (progress)
+		putchar('\n');
 
 	return 0;
 }
@@ -201,7 +226,7 @@ int fwConfigFile(libusb_device_handle *dev, const char *file)
 		.use_uart = 0,
 		.baudrate = 115200,
 		// SDRAM args
-		.bus_width = 1,
+		.bus_width = 0,
 		.bank_num = 1,
 		.row_addr = 13,
 		.col_addr = 9,
