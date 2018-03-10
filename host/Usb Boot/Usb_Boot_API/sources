@@ -1,0 +1,20 @@
+# SOURCES - for Test_jz4740_usb application
+
+TARGETNAME=Test_jz4740_usb
+TARGETPATH=obj
+TARGETTYPE=PROGRAM
+UMTYPE=console
+UMBASE=0x01000000
+
+TARGETLIBS=	$(SDK_LIB_PATH)\setupapi.lib
+
+BROWSER_INFO=1
+USE_NATIVE_EH=1
+
+!IF ("$(DDKBUILDENV)"=="fre") || ("$(DDKBUILDENV)"=="free")
+NTDEBUG=
+!ENDIF
+
+INCLUDES=..\.;$(DRIVERWORKS)\include
+
+SOURCES=Test_jz4740_usb.cpp openbyintf.cpp

@@ -1,0 +1,8 @@
+BUILD: Computing Include file dependencies:
+BUILD: Examining i:\forwor~1\usbboo~1.3\source\usbboo~1\usb_bo~2 directory for files to compile.
+Compiling i:\forwor~1\usbboo~1.3\source\usbboo~1\usb_bo~2 directory ********************
+'nmake.exe /c BUILDMSG=Stop. -i NTTEST= UMTEST= NOLINK=1 NOPASS0=1 386=1'
+1>NMAKE :  U1073: don't know how to make 'objchk\i386\jz4740_usb.res'
+1>Stop.
+BUILD: nmake.exe /c BUILDMSG=Stop. -i NTTEST= UMTEST= NOLINK=1 NOPASS0=1 386=1 failed - rc = 2
+Compile errors: not linking i:\forwor~1\usbboo~1.3\source\usbboo~1\usb_bo~2 directory ********************

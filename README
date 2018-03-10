@@ -1,0 +1,46 @@
+#
+# How to build USB Boot Software
+#
+
+The USB Boot Software include two part
+1.Host driver and USB Boot API
+2.Device driver and routines
+
+
+Host part
+	To modify and build host source you need following IDE:
+	1.Visual Studio .net 2003
+	2.Compuware Driver Studio 3.1
+	3.DDK for windows XP/2k
+	We recommand you modify and build host source on Windows XP.
+
+	Build host source just use the menu of windows IDE,
+	before that you should open the project in IDE.
+	When IDE are ready,just double click at 'Usb_Boot.sln'.
+
+
+Device part
+	The device source can divided into two part:
+	1.stage1
+	2.stage2
+	To obtain the compiler from Ingenic ftp server.
+
+	Stage1:
+	First enable the no-pic compiler show as above.
+	Then into the directory : ./device/stage1/fw
+	$ cd ./device/stage1/fw
+	Just make at last:
+	$ make
+	If build is ok,the output binary file is :fw.bin
+
+	Stage2:
+	First enable the no-pic compiler show as above.
+	Then into the directory :./device/stage2
+	$ cd ./device/stage2/
+	Just make at last:
+	$ make
+	If build is ok,the output binary file is :usb_boot.bin
+
+
+For more detail you can consult makefile, <Usb Boot Mannul> and <Usb Boot Guide>.
+Report problem to <yliu@ingenic.cn>
