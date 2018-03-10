@@ -239,6 +239,106 @@ int fwConfigFile(libusb_device_handle *dev, const char *file)
 		.size = 0,
 	};
 
+	// Read configuration file
+	FILE *fp = fopen(file, "r");
+	if (!fp) {
+		fprintf(stderr, "Error opening file: %s\n", strerror(errno));
+		return 1;
+	}
+
+	// Process lines
+	enum {INVALID, PLL, SDRAM, NAND, DEBUG, END} section = INVALID;
+	static const char *delim = " \t\r\n";
+	int cnt = 0;
+	char *line = NULL;
+	size_t len = 0;
+	ssize_t llen;
+	while ((llen = getline(&line, &len, fp)) != -1) {
+		cnt++;
+		char *p = strtok(line, delim);
+		if (!p || p[0] == ';')
+			continue;
+		if (section == END)
+			break;
+
+		// New section
+		if (p[0] == '[') {
+			if (strcmp(p, "[PLL]") == 0)
+				section = PLL;
+			else if (strcmp(p, "[SDRAM]") == 0)
+				section = SDRAM;
+			else if (strcmp(p, "[NAND]") == 0)
+				section = NAND;
+			else if (strcmp(p, "[DEBUG]") == 0)
+				section = DEBUG;
+			else if (strcmp(p, "[END]") == 0)
+				section = END;
+			else
+				break;
+			if (strtok(NULL, delim) != NULL)
+				break;
+			continue;
+		}
+
+		if (section == INVALID)
+			break;
+
+		// Expecting a value
+		char *s = strtok(NULL, delim);
+		if (!s)
+			break;
+
+		// Integer conversion
+		errno = 0;
+		unsigned long v = strtoul(s, NULL, 0);
+		if (errno != 0)
+			break;
+
+		if (section == PLL) {
+			if (strcmp(p, "EXTCLK") == 0)
+				args.ext_clk = v;
+			else if (strcmp(p, "CPUSPEED") == 0)
+				args.cpu_speed = v / args.ext_clk;
+			else if (strcmp(p, "PHMDIV") == 0)
+				args.phm_div = v;
+			else if (strcmp(p, "BOUDRATE") == 0)
+				args.baudrate = v;
+			else if (strcmp(p, "BAUDRATE") == 0)
+				args.baudrate = v;
+			else if (strcmp(p, "USEUART") == 0)
+				args.use_uart = v;
+			else
+				break;
+		} else if (section == SDRAM) {
+			if (strcmp(p, "BUSWIDTH") == 0)
+				args.bus_width = 2 - v / 16;
+			else if (strcmp(p, "BANKS") == 0)
+				args.bank_num = v / 2 - 1;
+			else if (strcmp(p, "ROWADDR") == 0)
+				args.row_addr = v;
+			else if (strcmp(p, "COLADDR") == 0)
+				args.col_addr = v;
+			else if (strcmp(p, "ISMOBILE") == 0)
+				args.is_mobile = v;
+			else if (strcmp(p, "ISBUSSHARE") == 0)
+				args.is_busshare = v;
+			else
+				break;
+		} else if (section == NAND) {
+			// TODO
+		} else {
+			break;
+		}
+	}
+
+	free(line);
+	fclose(fp);
+
+	if (llen != -1) {
+		fprintf(stderr, "Invalid content at line %u\n", cnt);
+		return 2;
+	}
+
 	printf("Firmware configurations:\n");
 	printf("\tCPU ID:                      JZ%x\n", args.cpu_id);
 	printf("\tExternal clock:              %u MHz\n", args.ext_clk);
