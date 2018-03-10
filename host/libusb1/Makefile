@@ -1,4 +1,4 @@
-SRC	:= main.c
+SRC	:= main.c usbboot.c
 PRG	:= usbboot
 
 S1FILE	?= main.c
