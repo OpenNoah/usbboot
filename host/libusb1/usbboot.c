@@ -8,7 +8,10 @@
 #include <unistd.h>
 #include <errno.h>
 #include <libusb.h>
+#include <configs.h>
 #include "usbboot.h"
+
+#define FW_ARGS_ADDR	0x80002008
 
 #define VR_GET_CPU_INFO		0x00
 #define VR_SET_DATA_ADDRESS	0x01
@@ -182,4 +185,48 @@ int downloadFile(libusb_device_handle *dev, unsigned long addr, const char *file
 	munmap(p, size);
 	close(fd);
 	return 0;
+}
+
+int fwConfigFile(libusb_device_handle *dev, const char *file)
+{
+	// Initial fallback values for testing
+	fw_args_t args = {
+		// CPU ID
+		.cpu_id = 0x4740,	// JZ4740
+		// PLL args
+		.ext_clk = 12,		// 12MHz
+		.cpu_speed = 28,	// 336MHz
+		.phm_div = 4,		// PLL DIV
+		// UART args
+		.use_uart = 0,
+		.baudrate = 115200,
+		// SDRAM args
+		.bus_width = 1,
+		.bank_num = 1,
+		.row_addr = 13,
+		.col_addr = 9,
+		.is_mobile = 0,
+		.is_busshare = 1,
+		// Debug args
+		.debug_ops = 0,
+		.pin_num = 0,
+		.start = 0,
+		.size = 0,
+	};
+
+	printf("Firmware configurations:\n");
+	printf("\tCPU ID:                      JZ%x\n", args.cpu_id);
+	printf("\tExternal clock:              %u MHz\n", args.ext_clk);
+	printf("\tCPU speed:                   %u MHz\n", args.ext_clk * args.cpu_speed);
+	printf("\tPLL divider:                 %u\n", args.phm_div);
+	printf("\tUsing UART:                  UART%u\n", args.use_uart);
+	printf("\tUART baud rate:              %u\n", args.baudrate);
+	printf("\tSDRAM data bus width:        %u bits\n", 32 - (args.bus_width << 4));
+	printf("\tSDRAM banks:                 %u\n", (args.bank_num + 1) << 1);
+	printf("\tSDRAM row address width:     %u\n", args.row_addr);
+	printf("\tSDRAM column address width:  %u\n", args.col_addr);
+	printf("\tMobile SDRAM mode:           %s\n", args.is_mobile ? "yes" : "no");
+	printf("\tShared SDRAM bus:            %s\n", args.is_busshare ? "yes" : "no");
+	printf("\tDebug mode:                  %s\n", args.debug_ops > 0 ? "yes" : "no");
+	return writeMem(dev, FW_ARGS_ADDR, sizeof(args), &args);
 }

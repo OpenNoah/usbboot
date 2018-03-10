@@ -1,14 +1,17 @@
 SRC	:= main.c usbboot.c
 PRG	:= usbboot
 
-S1FILE	?= main.c
-S1ADDR	?= 0x80002000
-S1SIZE	?= $(shell wc -c $(S1FILE) | awk '{print $$1}')
+CFGFILE	?= ../../configs/NP1380.cfg
 
-ARGS	?= cpu write $(S1ADDR) $(S1FILE) read $(S1ADDR) $(S1SIZE) tmp.out
-RUN	?= sudo ./$(PRG) $(ARGS)
+S1FILE	?= ../../device/stage1/fw/fw.bin
+S1ADDR	?= 0x80002000
+
+ARGS	?= cpu write $(S1ADDR) $(S1FILE) fwcfg $(CFGFILE) start1 $(S1ADDR) \
+	   usleep 100000 cpu
+RUN	?= sudo ../../../tools/reset.sh usb; sleep 1; sudo ./$(PRG) $(ARGS)
 
 CFLAGS	+= -Wall -Werror $(shell pkg-config --cflags libusb-1.0)
+CFLAGS	+= -I../../device/stage1/fw
 LIBS	+= $(shell pkg-config --libs libusb-1.0)
 
 .PHONY: all

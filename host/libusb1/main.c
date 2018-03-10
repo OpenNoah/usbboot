@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <string.h>
 #include "usbboot.h"
 
@@ -78,6 +79,21 @@ void process(libusb_device_handle *dev, int argc, char **argv)
 			unsigned long entry = strtoul(*argv, NULL, 0);
 			if (programStart1(dev, entry))
 				fprintf(stderr, "Error starting at %s\n", *argv);
+		} else if (strcmp(*argv, "fwcfg") == 0) {
+			if (++argv, !--argc)
+				return;
+			if (fwConfigFile(dev, *argv))
+				fprintf(stderr, "Error writing firmware configurations from %s\n", *argv);
+		} else if (strcmp(*argv, "usleep") == 0) {
+			if (++argv, !--argc)
+				return;
+			unsigned long v = strtoul(*argv, NULL, 0);
+			usleep(v);
+		} else if (strcmp(*argv, "sleep") == 0) {
+			if (++argv, !--argc)
+				return;
+			unsigned long v = strtoul(*argv, NULL, 0);
+			sleep(v);
 		}
 	}
 }

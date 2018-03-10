@@ -29,3 +29,5 @@ int uploadFile(libusb_device_handle *dev, unsigned long addr, size_t size, const
 
 int writeMem(libusb_device_handle *dev, unsigned long addr, size_t size, const void *p);
 int downloadFile(libusb_device_handle *dev, unsigned long addr, const char *file);
+
+int fwConfigFile(libusb_device_handle *dev, const char *file);
