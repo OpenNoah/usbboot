@@ -1,4 +1,8 @@
-usbboot
 *.o
 *.d
 *.tar*
+*.bin
+*.dump
+*.elf
+*.map
+*.sym
