@@ -95,9 +95,9 @@ int readMem(libusb_device_handle *dev, uint32_t addr, uint32_t size, void *p)
 	return transferData(dev, 1, size, p);
 }
 
-int uploadFile(libusb_device_handle *dev, uint32_t addr, uint32_t size, const char *file)
+int readFile(libusb_device_handle *dev, uint32_t addr, uint32_t size, const char *file)
 {
-	printf("Uploading from 0x%08x of size %u to file %s...\n", addr, size, file);
+	printf("Reading from 0x%08x of size %u to file %s...\n", addr, size, file);
 
 	// Open file for write
 	int fd = open(file, O_CREAT | O_RDWR);
@@ -151,7 +151,7 @@ int writeMem(libusb_device_handle *dev, uint32_t addr, uint32_t size, const void
 	return transferData(dev, 0, size, (void *)p);
 }
 
-int downloadFile(libusb_device_handle *dev, uint32_t addr, const char *file)
+int writeFile(libusb_device_handle *dev, uint32_t addr, const char *file)
 {
 	// Get file size
 	struct stat st;
@@ -161,7 +161,7 @@ int downloadFile(libusb_device_handle *dev, uint32_t addr, const char *file)
 	}
 	size_t size = st.st_size;
 
-	printf("Downloading file %s of size %lu to 0x%08x...\n", file, size, addr);
+	printf("Writing file %s of size %lu to 0x%08x...\n", file, size, addr);
 
 	// Open file for read
 	int fd = open(file, O_RDONLY);

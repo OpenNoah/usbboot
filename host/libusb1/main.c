@@ -13,8 +13,8 @@ void help(char *prg)
 		"flush                         | Flush I-Cache and D-Cache\n"
 		"mdw addr                      | Dump a 4-byte word from addr\n"
 		"mww addr value                | Write value as a 4-byte word to addr\n"
-		"write addr file               | Download data from file to addr\n"
-		"read addr size file           | Upload data of size bytes from addr to file\n"
+		"write addr file               | Write data from file to addr\n"
+		"read addr size file           | Read data of size bytes from addr to file\n"
 		"start1 addr                   | Branch to addr in I-Cache\n"
 		"start2 addr                   | Branch to addr directly\n"
 		"usleep us                     | Delay us microseconds\n"
@@ -28,7 +28,9 @@ void help(char *prg)
 		"dump [oob|noecc] pg num       | Dump num pages from page pg\n"
 		"                              | oob:   Dump OOB data too\n"
 		"                              | noecc: Dump OOB data with ECC bytes masked\n"
-		"read [oob|noecc] pg num file  | Upload num pages from page pg to file\n"
+		"read [oob|noecc] pg num file  | Read num pages starting from page pg to file\n"
+		"prog [oob|noecc] pg file      | Program pages starting from page pg from file\n"
+		"erase blk num                 | Erase num blocks starting from block blk\n"
 		"", prg);
 }
 
@@ -43,7 +45,8 @@ int nand_process(libusb_device_handle *dev, unsigned char cs, int *argcp, char *
 	} else if (strcmp(cmd, "init") == 0) {
 		if (nandInit(dev, cs))
 			fprintf(stderr, "Error initialising NAND %u\n", cs);
-	} else if (strcmp(cmd, "dump") == 0 || strcmp(cmd, "read") == 0) {
+	} else if (strcmp(cmd, "dump") == 0 || strcmp(cmd, "read") == 0 || \
+			strcmp(cmd, "prog") == 0) {
 		if (++argv, !--argc)
 			goto errargs;
 		unsigned char opt = NO_OOB;
@@ -57,16 +60,35 @@ int nand_process(libusb_device_handle *dev, unsigned char cs, int *argcp, char *
 				goto errargs;
 		}
 		unsigned long page = strtoul(*argv, NULL, 0);
-		if (++argv, !--argc)
-			goto errargs;
-		unsigned long num = strtoul(*argv, NULL, 0);
 		if (strcmp(cmd, "read") == 0) {
 			if (++argv, !--argc)
 				goto errargs;
-			if (nandUploadFile(dev, cs, opt, page, num, *argv))
+			unsigned long num = strtoul(*argv, NULL, 0);
+			if (++argv, !--argc)
+				goto errargs;
+			if (nandReadFile(dev, cs, opt, page, num, *argv))
 				fprintf(stderr, "Error reading NAND %u\n", cs);
-		} else if (nandDump(dev, cs, opt, page, num))
-			fprintf(stderr, "Error dumping NAND %u\n", cs);
+		} else if (strcmp(cmd, "prog") == 0) {
+			if (++argv, !--argc)
+				goto errargs;
+			if (nandProgramFile(dev, cs, opt, page, *argv))
+				fprintf(stderr, "Error programming NAND %u\n", cs);
+		} else {
+			if (++argv, !--argc)
+				goto errargs;
+			unsigned long num = strtoul(*argv, NULL, 0);
+			if (nandDump(dev, cs, opt, page, num))
+				fprintf(stderr, "Error dumping NAND %u\n", cs);
+		}
+	} else if (strcmp(cmd, "erase") == 0) {
+		if (++argv, !--argc)
+			goto errargs;
+		unsigned long blk = strtoul(*argv, NULL, 0);
+		if (++argv, !--argc)
+			goto errargs;
+		unsigned long num = strtoul(*argv, NULL, 0);
+		if (nandErase(dev, cs, blk, num))
+			fprintf(stderr, "Error erasing NAND %u\n", cs);
 	} else {
 		fprintf(stderr, "Invalid NAND subcommand: %s\n", cmd);
 		return -1;
@@ -118,7 +140,7 @@ int process(libusb_device_handle *dev, int argc, char **argv)
 			unsigned long addr = strtoul(*argv, NULL, 0);
 			if (++argv, !--argc)
 				goto errargs;
-			if (downloadFile(dev, addr, *argv))
+			if (writeFile(dev, addr, *argv))
 				fprintf(stderr, "Error writing data from %s\n", *argv);
 		} else if (strcmp(*argv, "read") == 0) {
 			if (++argv, !--argc)
@@ -129,7 +151,7 @@ int process(libusb_device_handle *dev, int argc, char **argv)
 			unsigned long len = strtoul(*argv, NULL, 0);
 			if (++argv, !--argc)
 				goto errargs;
-			if (uploadFile(dev, addr, len, *argv))
+			if (readFile(dev, addr, len, *argv))
 				fprintf(stderr, "Error reading data to %s\n", *argv);
 		} else if (strcmp(*argv, "start1") == 0) {
 			if (++argv, !--argc)

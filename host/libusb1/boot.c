@@ -233,7 +233,7 @@ static int writeConfig(libusb_device_handle *dev, unsigned long addr)
 	return writeMem(dev, addr, sizeof(fw_args_t), &cfg_hand.fw_args);
 }
 
-int receiveHandshake(libusb_device_handle *dev, uint16_t *hs)
+int receiveHandshake(libusb_device_handle *dev, void *hs)
 {
 	uint16_t tmp[4];
 	if (!hs)
@@ -278,7 +278,7 @@ int systemInit(libusb_device_handle *dev, const char *fw, const char *boot)
 	if (fw[0] == 0)
 		goto stage2;
 	// Stage 1, initialise clocks, UART and SDRAM
-	if (downloadFile(dev, FW_START_ADDR, fw))
+	if (writeFile(dev, FW_START_ADDR, fw))
 		return 2;
 	if (writeConfig(dev, FW_START_ADDR + ARGS_OFFSET))
 		return 3;
@@ -299,7 +299,7 @@ stage2:
 		((args->bank_num + 1) << 1) * (4 - (args->bus_width << 1));
 	uint32_t addr = BOOT_START_ADDR + size - BOOT_CODE_SIZE;
 	// Stage 2, initialise NAND, handle advanced USB requests
-	if (downloadFile(dev, addr, boot))
+	if (writeFile(dev, addr, boot))
 		return 5;
 	if (writeConfig(dev, addr + ARGS_OFFSET))
 		return 6;

@@ -17,7 +17,7 @@ void hexDump(void *addr, int len);
 int setAddress(libusb_device_handle *dev, uint32_t addr);
 int setLength(libusb_device_handle *dev, uint32_t len);
 int transferData(libusb_device_handle *dev, uint32_t rw, uint32_t size, void *p);
-int receiveHandshake(libusb_device_handle *dev, uint16_t *hs);
+int receiveHandshake(libusb_device_handle *dev, void *hs);
 int checkConfig();
 
 extern hand_t cfg_hand;
@@ -51,7 +51,7 @@ int nandInit(libusb_device_handle *dev, uint8_t cs)
 	return nandOp(dev, cs, 0, NAND_INIT);
 }
 
-static int nandRead(libusb_device_handle *dev, uint8_t cs, uint8_t opt, uint32_t page, uint32_t num, void *p)
+static int nandTransfer(libusb_device_handle *dev, uint32_t rw, uint8_t cs, uint8_t opt, uint32_t page, uint32_t num, void *p)
 {
 	if (!num)
 		return 0;
@@ -63,30 +63,47 @@ static int nandRead(libusb_device_handle *dev, uint8_t cs, uint8_t opt, uint32_t
 		fprintf(stderr, "Error setting number of pages %u\n", num);
 		return 3;
 	}
-	if (nandOp(dev, cs, opt, NAND_READ))
-		return 4;
+
 	// Calculate data size
 	uint32_t size = ((opt == NO_OOB ? 0 : cfg_hand.nand_os) + \
 			cfg_hand.nand_ps) * num;
-	if (transferData(dev, 1, size, p))
-		return 5;
-	return receiveHandshake(dev, NULL);
+	// Read data
+	if (rw) {
+		if (nandOp(dev, cs, opt, NAND_READ))
+			return 4;
+		if (transferData(dev, rw, size, p))
+			return 5;
+		return receiveHandshake(dev, NULL);
+	}
+	// Program data
+	if (transferData(dev, rw, size, p))
+		return 6;
+	if (nandOp(dev, cs, opt, NAND_PROGRAM))
+		return 7;
+	uint32_t data[2];
+	if (receiveHandshake(dev, data))
+		return 8;
+	// Return value should be the next page
+	if (data[0] != page + num) {
+		fprintf(stderr, "Incorrect page number returned: %u\n", data[0]);
+		return 9;
+	}
+	return 0;
 }
 
-int nandReadMem(libusb_device_handle *dev, uint8_t cs, uint8_t opt, uint32_t page, uint32_t num, void *p)
+static int nandTransferMem(libusb_device_handle *dev, uint32_t rw, uint8_t cs, uint8_t opt, uint32_t page, uint32_t num, void *p)
 {
 	if (checkConfig())
 		return 1;
 	while (num) {
 		uint32_t n = num >= MAX_PAGES ? MAX_PAGES : num;
-		int err = nandRead(dev, cs, opt, page, n, p);
+		int err = nandTransfer(dev, rw, cs, opt, page, n, p);
 		if (err)
 			return err;
 		page += n;
 		num -= n;
 		// Calculate data size
-		uint32_t size = ((opt == NO_OOB ? 0 : cfg_hand.nand_os) + \
-				cfg_hand.nand_ps) * n;
+		uint32_t size = ((opt == NO_OOB ? 0 : cfg_hand.nand_os) + cfg_hand.nand_ps) * n;
 		p += size;
 	}
 	return 0;
@@ -97,7 +114,7 @@ int nandDump(libusb_device_handle *dev, uint8_t cs, uint8_t opt, uint32_t page, 
 	uint32_t size = ((opt == NO_OOB ? 0 : cfg_hand.nand_os) + \
 			cfg_hand.nand_ps) * num;
 	void *mem = malloc(size);
-	int err = nandReadMem(dev, cs, opt, page, num, mem);
+	int err = nandTransferMem(dev, 1, cs, opt, page, num, mem);
 	if (!err) {
 		void *p = mem;
 		for (; num--; page++) {
@@ -116,11 +133,11 @@ int nandDump(libusb_device_handle *dev, uint8_t cs, uint8_t opt, uint32_t page, 
 	return err;
 }
 
-int nandUploadFile(libusb_device_handle *dev, uint8_t cs, uint8_t opt, uint32_t page, uint32_t num, const char *file)
+int nandReadFile(libusb_device_handle *dev, uint8_t cs, uint8_t opt, uint32_t page, uint32_t num, const char *file)
 {
 	if (checkConfig())
 		return 1;
-	printf("Uploading %u pages from page %u to file %s...\n", num, page, file);
+	printf("Reading %u pages from page %u to file %s...\n", num, page, file);
 
 	// Open file for write
 	int fd = open(file, O_CREAT | O_RDWR);
@@ -148,7 +165,7 @@ int nandUploadFile(libusb_device_handle *dev, uint8_t cs, uint8_t opt, uint32_t 
 		return 3;
 	}
 
-	if (nandReadMem(dev, cs, opt, page, num, p)) {
+	if (nandTransferMem(dev, 1, cs, opt, page, num, p)) {
 		munmap(p, size);
 		close(fd);
 		return 4;
@@ -159,3 +176,88 @@ int nandUploadFile(libusb_device_handle *dev, uint8_t cs, uint8_t opt, uint32_t 
 	return 0;
 }
 
+int nandProgramFile(libusb_device_handle *dev, uint8_t cs, uint8_t opt, uint32_t page, const char *file)
+{
+	// Get file size
+	struct stat st;
+	if (stat(file, &st)) {
+		fprintf(stderr, "Error getting file stat: %s\n", strerror(errno));
+		return 1;
+	}
+	size_t size = st.st_size;
+
+	if (checkConfig())
+		return 1;
+	// Calculate page size
+	uint32_t ps = (opt == NO_OOB ? 0 : cfg_hand.nand_os) + cfg_hand.nand_ps;
+	uint32_t num = (size + ps - 1) / ps;
+	printf("Programming %u pages from page %u from file %s of size %lu...\n", num, page, file, size);
+
+	// Open file for read
+	int fd = open(file, O_RDONLY);
+	if (fd < 0) {
+		fprintf(stderr, "Error opening file: %s\n", strerror(errno));
+		return 2;
+	}
+
+	// Memory map
+	void *p = mmap(0, size, PROT_READ, MAP_SHARED, fd, 0);
+	if (p == MAP_FAILED) {
+		fprintf(stderr, "Error mapping file: %s\n", strerror(errno));
+		close(fd);
+		return 3;
+	}
+
+	uint32_t n = size / ps;
+	if (nandTransferMem(dev, 0, cs, opt, page, n, p)) {
+		munmap(p, size);
+		close(fd);
+		return 4;
+	}
+
+	// Extra data not able to fill a page
+	if (n != num) {
+		void *mem = malloc(ps);
+		uint32_t offset = n * ps;
+		uint32_t extra = size - offset;
+		memcpy(mem, p + offset, extra);
+		memset(mem + extra, 0xff, ps - extra);
+		if (nandTransfer(dev, 0, cs, opt, page + n, 1, mem)) {
+			free(mem);
+			munmap(p, size);
+			close(fd);
+			return 5;
+		}
+		free(mem);
+	}
+
+	munmap(p, size);
+	close(fd);
+	return 0;
+}
+
+int nandErase(libusb_device_handle *dev, uint8_t cs, uint32_t blk, uint32_t num)
+{
+	if (checkConfig())
+		return 1;
+	printf("Erasing %u blocks starting from block %u...\n", num, blk);
+	if (setAddress(dev, blk)) {
+		fprintf(stderr, "Error setting start block %u\n", blk);
+		return 2;
+	}
+	if (setLength(dev, num)) {
+		fprintf(stderr, "Error setting number of blocks %u\n", num);
+		return 3;
+	}
+	if (nandOp(dev, cs, 0, NAND_ERASE))
+		return 4;
+	uint32_t data[2];
+	if (receiveHandshake(dev, data))
+		return 5;
+	// Return value should be the next page
+	if (data[0] != (blk + num) * cfg_hand.nand_ppb) {
+		fprintf(stderr, "Incorrect page number returned: %u\n", data[0]);
+		return 6;
+	}
+	return 0;
+}
