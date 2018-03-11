@@ -1,6 +1,7 @@
 #pragma once
 
 #include <libusb.h>
+#include <usb_boot.h>
 
 #define USBBOOT_VID	0x601a
 #define USBBOOT_PID	0x4740
@@ -25,6 +26,12 @@ int uploadFile(libusb_device_handle *dev, uint32_t addr, uint32_t size, const ch
 int writeMem(libusb_device_handle *dev, uint32_t addr, uint32_t size, const void *p);
 int downloadFile(libusb_device_handle *dev, uint32_t addr, const char *file);
 
-int systemInit(libusb_device_handle *dev, const char *fw, const char *boot, const char *cfg);
+int loadConfigFile(const char *file);
+int systemInit(libusb_device_handle *dev, const char *fw, const char *boot);
 
 int nandQuery(libusb_device_handle *dev, uint8_t cs);
+int nandInit(libusb_device_handle *dev, uint8_t cs);
+
+// opt: OOB_ECC, OOB_NO_ECC or NO_OOB
+int nandReadMem(libusb_device_handle *dev, uint8_t cs, uint8_t opt, uint32_t page, uint32_t num, void *p);
+int nandDump(libusb_device_handle *dev, uint8_t cs, uint8_t opt, uint32_t page, uint32_t num);

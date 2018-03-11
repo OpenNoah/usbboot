@@ -1,4 +1,4 @@
-SRC	:= main.c usbboot.c nand.c
+SRC	:= main.c usbboot.c boot.c nand.c common.c
 PRG	:= usbboot
 
 S1FILE	?= ../../device/stage1/fw/fw.bin
@@ -12,8 +12,9 @@ MEMFILE	:= random$(MEMTEST).bin
 MEMTMP	:= tmp.bin
 
 RESET	:= sudo ../../../tools/reset.sh usb; sleep 1
-RUN	:= $(RESET); sudo ./$(PRG) cpu init $(S1FILE) $(S2FILE) $(CFGFILE) cpu
-MEMRUN	:= $(RESET); sudo ./$(PRG) cpu init $(S1FILE) "" $(CFGFILE) \
+RUN	:= $(RESET); sudo ./$(PRG) cpu cfg $(CFGFILE) \
+	   init $(S1FILE) $(S2FILE) cpu
+MEMRUN	:= $(RESET); sudo ./$(PRG) cpu cfg $(CFGFILE) init $(S1FILE) "" \
 	   write $(MEMADDR) $(MEMFILE) \
 	   read $(MEMADDR) `stat -c %s $(MEMFILE)` $(MEMTMP)
 

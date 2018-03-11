@@ -4,23 +4,46 @@
 #include <string.h>
 #include "usbboot.h"
 
-void nand_process(libusb_device_handle *dev, int *argcp, char ***argvp)
+int nand_process(libusb_device_handle *dev, int *argcp, char ***argvp)
 {
 	int argc = *argcp;
 	char **argv = *argvp;
 
 	char *cmd = *argv;
 	if (++argv, !--argc)
-		return;
+		return 1;
 	unsigned char cs = strtoul(*argv, NULL, 0);
 
 	if (strcmp(cmd, "query") == 0) {
 		if (nandQuery(dev, cs))
-			fprintf(stderr, "Error querying NAND info\n");
+			fprintf(stderr, "Error querying NAND %u\n", cs);
+	} else if (strcmp(cmd, "init") == 0) {
+		if (nandInit(dev, cs))
+			fprintf(stderr, "Error initialising NAND %u\n", cs);
+	} else if (strcmp(cmd, "dump") == 0) {
+		if (++argv, !--argc)
+			return 1;
+		unsigned char opt = NO_OOB;
+		if (strcmp(*argv, "oob") == 0) {
+			opt = OOB_ECC;
+			if (++argv, !--argc)
+				return 1;
+		} else if (strcmp(*argv, "noecc") == 0) {
+			opt = OOB_NO_ECC;
+			if (++argv, !--argc)
+				return 1;
+		}
+		unsigned long page = strtoul(*argv, NULL, 0);
+		if (++argv, !--argc)
+			return 1;
+		unsigned long num = strtoul(*argv, NULL, 0);
+		if (nandDump(dev, cs, opt, page, num))
+			fprintf(stderr, "Error reading NAND %u\n", cs);
 	}
 
 	*argcp = argc;
 	*argvp = argv;
+	return 0;
 }
 
 void process(libusb_device_handle *dev, int argc, char **argv)
@@ -84,6 +107,11 @@ void process(libusb_device_handle *dev, int argc, char **argv)
 			unsigned long entry = strtoul(*argv, NULL, 0);
 			if (programStart2(dev, entry))
 				fprintf(stderr, "Error starting at %s\n", *argv);
+		} else if (strcmp(*argv, "cfg") == 0) {
+			if (++argv, !--argc)
+				return;
+			if (loadConfigFile(*argv))
+				fprintf(stderr, "Error loading configurations\n");
 		} else if (strcmp(*argv, "init") == 0) {
 			if (++argv, !--argc)
 				return;
@@ -91,10 +119,7 @@ void process(libusb_device_handle *dev, int argc, char **argv)
 			if (++argv, !--argc)
 				return;
 			char *boot = *argv;
-			if (++argv, !--argc)
-				return;
-			char *cfg = *argv;
-			if (systemInit(dev, fw, boot, cfg))
+			if (systemInit(dev, fw, boot))
 				fprintf(stderr, "Error initialising system\n");
 		} else if (strcmp(*argv, "usleep") == 0) {
 			if (++argv, !--argc)
@@ -109,7 +134,8 @@ void process(libusb_device_handle *dev, int argc, char **argv)
 		} else if (strcmp(*argv, "nand") == 0) {
 			if (++argv, !--argc)
 				return;
-			nand_process(dev, &argc, &argv);
+			if (nand_process(dev, &argc, &argv))
+				return;
 		}
 	}
 }
