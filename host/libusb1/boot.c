@@ -194,7 +194,7 @@ int loadConfigFile(const char *file)
 	printf("\tCPU ID:                      JZ%x\n", args.cpu_id);
 	printf("\tExternal clock:              %u MHz\n", args.ext_clk);
 	printf("\tCPU speed:                   %u MHz\n", args.ext_clk * args.cpu_speed);
-	printf("\tPLL divider:                 %u\n", args.phm_div);
+	printf("\tPLL divider:                 DIV %u\n", args.phm_div);
 	printf("\tUsing UART:                  UART%u\n", args.use_uart);
 	printf("\tUART baud rate:              %u bps\n", args.baudrate);
 	printf("\tSDRAM data bus width:        %u bits\n", 32 - (args.bus_width << 4));
@@ -209,13 +209,15 @@ int loadConfigFile(const char *file)
 	printf("\tNAND page size:              %u bytes\n", hand.nand_ps);
 	printf("\tNAND OOB size:               %u bytes\n", hand.nand_os);
 	printf("\tNAND pages per block:        %u pages\n", hand.nand_ppb);
-	printf("\tNAND blocks per chip:        %u block\n", hand.nand_bpc);
+	if (hand.nand_bpc)
+		printf("\tNAND blocks per chip:        %u blocks\n", hand.nand_bpc);
 	printf("\tNAND planes:                 %u planes\n", hand.nand_plane);
 	printf("\tNAND force erase:            %s\n", hand.nand_force_erase ? "yes" : "no");
 	printf("\tNAND ECC offset:             %u bytes\n", hand.nand_eccpos);
 	printf("\tNAND bad block flag offset:  %u bytes\n", hand.nand_bbpos);
-	printf("\tNAND bad block page:         %u\n", hand.nand_bbpage);
-	printf("\tNAND BCH algorithm:          %u bits\n", hand.nand_bchbit);
+	printf("\tNAND bad block page:         page %u\n", hand.nand_bbpage);
+	if (args.cpu_id > 0x4740)
+		printf("\tNAND BCH algorithm:          %u bits\n", hand.nand_bchbit);
 	if (hand.nand_wppin)
 		printf("\tNAND write protect pin:      GPIO%u\n", hand.nand_wppin);
 
