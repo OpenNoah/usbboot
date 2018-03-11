@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <errno.h>
 #include "usbboot.h"
 
 int nand_process(libusb_device_handle *dev, int *argcp, char ***argvp)
@@ -39,6 +40,9 @@ int nand_process(libusb_device_handle *dev, int *argcp, char ***argvp)
 		unsigned long num = strtoul(*argv, NULL, 0);
 		if (nandDump(dev, cs, opt, page, num))
 			fprintf(stderr, "Error reading NAND %u\n", cs);
+	} else {
+		fprintf(stderr, "Invalid NAND subcommand: %s\n", cmd);
+		return -1;
 	}
 
 	*argcp = argc;
@@ -46,7 +50,7 @@ int nand_process(libusb_device_handle *dev, int *argcp, char ***argvp)
 	return 0;
 }
 
-void process(libusb_device_handle *dev, int argc, char **argv)
+int process(libusb_device_handle *dev, int argc, char **argv)
 {
 	while (++argv, --argc) {
 		if (strcmp(*argv, "cpu") == 0) {
@@ -58,7 +62,7 @@ void process(libusb_device_handle *dev, int argc, char **argv)
 				fprintf(stderr, "Error flushing caches\n");
 		} else if (strcmp(*argv, "mdw") == 0) {
 			if (++argv, !--argc)
-				return;
+				return 0;
 			unsigned long addr = strtoul(*argv, NULL, 0);
 			unsigned long value = 0;
 			if (readMem(dev, addr, 4, &value))
@@ -67,10 +71,10 @@ void process(libusb_device_handle *dev, int argc, char **argv)
 				printf("0x%08lx => 0x%08lx\n", addr, value);
 		} else if (strcmp(*argv, "mww") == 0) {
 			if (++argv, !--argc)
-				return;
+				return 0;
 			unsigned long addr = strtoul(*argv, NULL, 0);
 			if (++argv, !--argc)
-				return;
+				return 0;
 			unsigned long value = strtoul(*argv, NULL, 0);
 			if (writeMem(dev, addr, 4, &value))
 				fprintf(stderr, "Error writing memory %s\n", *argv);
@@ -78,66 +82,71 @@ void process(libusb_device_handle *dev, int argc, char **argv)
 				printf("0x%08lx <= 0x%08lx\n", addr, value);
 		} else if (strcmp(*argv, "write") == 0) {
 			if (++argv, !--argc)
-				return;
+				return 0;
 			unsigned long addr = strtoul(*argv, NULL, 0);
 			if (++argv, !--argc)
-				return;
+				return 0;
 			if (downloadFile(dev, addr, *argv))
 				fprintf(stderr, "Error writing data from %s\n", *argv);
 		} else if (strcmp(*argv, "read") == 0) {
 			if (++argv, !--argc)
-				return;
+				return 0;
 			unsigned long addr = strtoul(*argv, NULL, 0);
 			if (++argv, !--argc)
-				return;
+				return 0;
 			unsigned long len = strtoul(*argv, NULL, 0);
 			if (++argv, !--argc)
-				return;
+				return 0;
 			if (uploadFile(dev, addr, len, *argv))
 				fprintf(stderr, "Error reading data to %s\n", *argv);
 		} else if (strcmp(*argv, "start1") == 0) {
 			if (++argv, !--argc)
-				return;
+				return 0;
 			unsigned long entry = strtoul(*argv, NULL, 0);
 			if (programStart1(dev, entry))
 				fprintf(stderr, "Error starting at %s\n", *argv);
 		} else if (strcmp(*argv, "start2") == 0) {
 			if (++argv, !--argc)
-				return;
+				return 0;
 			unsigned long entry = strtoul(*argv, NULL, 0);
 			if (programStart2(dev, entry))
 				fprintf(stderr, "Error starting at %s\n", *argv);
 		} else if (strcmp(*argv, "cfg") == 0) {
 			if (++argv, !--argc)
-				return;
+				return 0;
 			if (loadConfigFile(*argv))
 				fprintf(stderr, "Error loading configurations\n");
 		} else if (strcmp(*argv, "init") == 0) {
 			if (++argv, !--argc)
-				return;
+				return 0;
 			char *fw = *argv;
 			if (++argv, !--argc)
-				return;
+				return 0;
 			char *boot = *argv;
 			if (systemInit(dev, fw, boot))
 				fprintf(stderr, "Error initialising system\n");
 		} else if (strcmp(*argv, "usleep") == 0) {
 			if (++argv, !--argc)
-				return;
+				return 0;
 			unsigned long v = strtoul(*argv, NULL, 0);
 			usleep(v);
 		} else if (strcmp(*argv, "sleep") == 0) {
 			if (++argv, !--argc)
-				return;
+				return 0;
 			unsigned long v = strtoul(*argv, NULL, 0);
 			sleep(v);
 		} else if (strcmp(*argv, "nand") == 0) {
 			if (++argv, !--argc)
-				return;
-			if (nand_process(dev, &argc, &argv))
-				return;
+				return 0;
+			int err = nand_process(dev, &argc, &argv);
+			if (err)
+				return err;
+		} else {
+			fprintf(stderr, "Invalid command: %s\n", *argv);
+			return -1;
 		}
 	}
+	return 0;
 }
 
 int main(int argc, char *argv[])
@@ -145,16 +154,23 @@ int main(int argc, char *argv[])
 	libusb_context *ctx;
 	libusb_init(&ctx);
 
+	int err = 0;
 	libusb_device_handle *dev = libusb_open_device_with_vid_pid(ctx, USBBOOT_VID, USBBOOT_PID);
 	if (dev) {
-		fprintf(stderr, "Device %04x:%04x opened\n", USBBOOT_VID, USBBOOT_PID);
+		fprintf(stderr, "USB device %04x:%04x opened\n", USBBOOT_VID, USBBOOT_PID);
 		if (!libusb_claim_interface(dev, USBBOOT_IFACE)) {
-			process(dev, argc, argv);
+			err = process(dev, argc, argv);
 			libusb_release_interface(dev, USBBOOT_IFACE);
+		} else {
+			fprintf(stderr, "Error: Could not claim USB interface\n");
+			err = EACCES;
 		}
 		libusb_close(dev);
+	} else {
+		fprintf(stderr, "Error: USB device not found or inaccessible\n");
+		err = ENODEV;
 	}
 
 	libusb_exit(ctx);
-	return 0;
+	return err;
 }
