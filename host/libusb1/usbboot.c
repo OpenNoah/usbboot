@@ -8,8 +8,8 @@
 #include <unistd.h>
 #include <errno.h>
 #include <libusb.h>
-#include <configs.h>
 #include <usb_boot.h>
+#include <hand.h>
 #include "usbboot.h"
 
 #define FW_START_ADDR	0x80002000
@@ -209,7 +209,7 @@ int downloadFile(libusb_device_handle *dev, uint32_t addr, const char *file)
 	return 0;
 }
 
-static int loadConfig(const char *file, fw_args_t *argv)
+static int loadConfig(const char *file, hand_t *argv)
 {
 	// Initial fallback values for testing
 	fw_args_t args = {
@@ -234,6 +234,25 @@ static int loadConfig(const char *file, fw_args_t *argv)
 		.pin_num = 0,
 		.start = 0,
 		.size = 0,
+	};
+
+	hand_t hand = {
+		.pt = args.cpu_id,	// UNUSED!
+		.nand_bw = 8,		// BUSWIDTH
+		.nand_rc = 3,		// ROWCYCLES
+		.nand_ps = 2048,	// PAGESIZE
+		.nand_ppb = 128,	// PAGEPERBLOCK
+		.nand_force_erase = 1,	// FORCEERASE
+		.nand_pn = 1,		// UNUSED!
+		.nand_os = 64,		// OOBSIZE
+		.nand_eccpos = 28,	// ECCPOS
+		.nand_bbpage = 127,	// BADBLOCKPAGE
+		.nand_bbpos = 0,	// BADBLOCKPOS
+		.nand_plane = 1,	// PLANENUM
+		.nand_bchbit = 4,	// BCHBIT
+		.nand_wppin = 0,	// WPPIN
+		.nand_bpc = 0,		// BLOCKPERCHIP
+		.fw_args = args,
 	};
 
 	// Read configuration file
@@ -298,9 +317,8 @@ static int loadConfig(const char *file, fw_args_t *argv)
 				args.cpu_speed = v / args.ext_clk;
 			else if (strcmp(p, "PHMDIV") == 0)
 				args.phm_div = v;
-			else if (strcmp(p, "BOUDRATE") == 0)
-				args.baudrate = v;
-			else if (strcmp(p, "BAUDRATE") == 0)
+			else if (strcmp(p, "BOUDRATE") == 0 || \
+					strcmp(p, "BAUDRATE") == 0)
 				args.baudrate = v;
 			else if (strcmp(p, "USEUART") == 0)
 				args.use_uart = v;
@@ -322,7 +340,36 @@ static int loadConfig(const char *file, fw_args_t *argv)
 			else
 				break;
 		} else if (section == NAND) {
-			// TODO
+			if (strcmp(p, "BUSWIDTH") == 0)
+				hand.nand_bw = v;
+			else if (strcmp(p, "ROWCYCLES") == 0)
+				hand.nand_rc = v;
+			else if (strcmp(p, "PAGESIZE") == 0)
+				hand.nand_ps = v;
+			else if (strcmp(p, "PAGEPERBLOCK") == 0)
+				hand.nand_ppb = v;
+			else if (strcmp(p, "FORCEERASE") == 0)
+				hand.nand_force_erase = v;
+			else if (strcmp(p, "OOBSIZE") == 0)
+				hand.nand_os = v;
+			else if (strcmp(p, "ECCPOS") == 0)
+				hand.nand_eccpos = v;
+			else if (strcmp(p, "BADBLACKPAGE") == 0 || \
+					strcmp(p, "BADBLOCKPAGE") == 0)
+				hand.nand_bbpage = v;
+			else if (strcmp(p, "BADBLACKPOS") == 0 || \
+					strcmp(p, "BADBLOCKPOS") == 0)
+				hand.nand_bbpos = v;
+			else if (strcmp(p, "PLANENUM") == 0)
+				hand.nand_plane = v;
+			else if (strcmp(p, "BCHBIT") == 0)
+				hand.nand_bchbit = v;
+			else if (strcmp(p, "WPPIN") == 0)
+				hand.nand_wppin = v;
+			else if (strcmp(p, "BLOCKPERCHIP") == 0)
+				hand.nand_bpc = v;
+			else
+				break;
 		} else {
 			break;
 		}
@@ -342,15 +389,33 @@ static int loadConfig(const char *file, fw_args_t *argv)
 	printf("\tCPU speed:                   %u MHz\n", args.ext_clk * args.cpu_speed);
 	printf("\tPLL divider:                 %u\n", args.phm_div);
 	printf("\tUsing UART:                  UART%u\n", args.use_uart);
-	printf("\tUART baud rate:              %u\n", args.baudrate);
+	printf("\tUART baud rate:              %u bps\n", args.baudrate);
 	printf("\tSDRAM data bus width:        %u bits\n", 32 - (args.bus_width << 4));
-	printf("\tSDRAM banks:                 %u\n", (args.bank_num + 1) << 1);
-	printf("\tSDRAM row address width:     %u\n", args.row_addr);
-	printf("\tSDRAM column address width:  %u\n", args.col_addr);
+	printf("\tSDRAM banks:                 %u banks\n", (args.bank_num + 1) << 1);
+	printf("\tSDRAM row address width:     %u bits\n", args.row_addr);
+	printf("\tSDRAM column address width:  %u bits\n", args.col_addr);
 	printf("\tMobile SDRAM mode:           %s\n", args.is_mobile ? "yes" : "no");
 	printf("\tShared SDRAM bus:            %s\n", args.is_busshare ? "yes" : "no");
 	printf("\tDebug mode:                  %s\n", args.debug_ops > 0 ? "yes" : "no");
-	memcpy(argv, &args, sizeof(args));
+	printf("\tNAND row address cycles:     %u cycles\n", hand.nand_rc);
+	printf("\tNAND data bus width:         %u bits\n", hand.nand_bw);
+	printf("\tNAND page size:              %u bytes\n", hand.nand_ps);
+	printf("\tNAND OOB size:               %u bytes\n", hand.nand_os);
+	printf("\tNAND pages per block:        %u pages\n", hand.nand_ppb);
+	printf("\tNAND blocks per chip:        %u block\n", hand.nand_bpc);
+	printf("\tNAND planes:                 %u planes\n", hand.nand_plane);
+	printf("\tNAND force erase:            %s\n", hand.nand_force_erase ? "yes" : "no");
+	printf("\tNAND ECC offset:             %u bytes\n", hand.nand_eccpos);
+	printf("\tNAND bad block flag offset:  %u bytes\n", hand.nand_bbpos);
+	printf("\tNAND bad block page:         %u\n", hand.nand_bbpage);
+	printf("\tNAND BCH algorithm:          %u bits\n", hand.nand_bchbit);
+	if (hand.nand_wppin)
+		printf("\tNAND write protect pin:      GPIO%u\n", hand.nand_wppin);
+
+	hand.pt = args.cpu_id;
+	hand.nand_pn = hand.nand_plane;
+	hand.fw_args = args;
+	memcpy(argv, &hand, sizeof(hand));
 	return 0;
 }
 
@@ -359,16 +424,43 @@ static int writeConfig(libusb_device_handle *dev, unsigned long addr, fw_args_t 
 	return writeMem(dev, addr, sizeof(*argv), argv);
 }
 
+static int uploadConfig(libusb_device_handle *dev, hand_t *argv)
+{
+	// Bulk transfer
+	uint32_t size = sizeof(*argv);
+	int len = 0, err;
+	if ((err = libusb_bulk_transfer(dev, USBBOOT_EP_OUT, (void *)argv, size, &len, 0)) || len != size) {
+		fprintf(stderr, "Error uploading configurations: %s\n", libusb_strerror(err));
+		return 1;
+	}
+
+	if ((err = libusb_control_transfer(dev, 0x40, VR_CONFIGRATION, DS_hand, 0, 0, 0, 0))) {
+		fprintf(stderr, "Error applying configurations: %s\n", libusb_strerror(err));
+		return 2;
+	}
+
+	// Handshake packet
+	uint16_t hs[4];
+	size = sizeof(hs);
+	if ((err = libusb_bulk_transfer(dev, USBBOOT_EP_IN, (void *)hs, size, &len, 0)) || len != size) {
+		fprintf(stderr, "Error receiving handshake: %s\n", libusb_strerror(err));
+		return 1;
+	}
+
+	return 0;
+}
+
 int systemInit(libusb_device_handle *dev, const char *fw, const char *boot, const char *cfg)
 {
-	fw_args_t args;
-	if (loadConfig(cfg, &args))
+	hand_t hand;
+	fw_args_t *args = &hand.fw_args;
+	if (loadConfig(cfg, &hand))
 		return 1;
 
 	// Stage 1, initialise clocks, UART and SDRAM
 	if (downloadFile(dev, FW_START_ADDR, fw))
 		return 2;
-	if (writeConfig(dev, FW_START_ADDR + ARGS_OFFSET, &args))
+	if (writeConfig(dev, FW_START_ADDR + ARGS_OFFSET, args))
 		return 3;
 	if (programStart1(dev, FW_START_ADDR))
 		return 4;
@@ -379,18 +471,20 @@ int systemInit(libusb_device_handle *dev, const char *fw, const char *boot, cons
 		return 0;
 
 	// Calculate SDRAM size and boot firmware start address
-	uint32_t size = (1ul << (args.row_addr + args.col_addr)) *
-		((args.bank_num + 1) << 1) * (4 - (args.bus_width << 1));
+	uint32_t size = (1ul << (args->row_addr + args->col_addr)) *
+		((args->bank_num + 1) << 1) * (4 - (args->bus_width << 1));
 	uint32_t addr = BOOT_START_ADDR + size - BOOT_CODE_SIZE;
 
 	// Stage 2, initialise NAND, handle advanced USB requests
 	if (downloadFile(dev, addr, boot))
 		return 5;
-	if (writeConfig(dev, addr + ARGS_OFFSET, &args))
+	if (writeConfig(dev, addr + ARGS_OFFSET, args))
 		return 6;
 	if (flushCaches(dev))
 		return 7;
 	if (programStart2(dev, addr))
 		return 8;
+	if (uploadConfig(dev, &hand))
+		return 9;
 	return 0;
 }
