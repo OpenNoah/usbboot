@@ -43,6 +43,13 @@ void c_main(void)
 	if ( fw_args->use_uart > 3 ) fw_args->use_uart = 0;
 	UART_BASE = 0xB0030000 + fw_args->use_uart * 0x1000;
 
+#if 1
+	serial_puts("\nUSB boot stage 2 firmware\nBuild time: ");
+	serial_puts(__DATE__);
+	serial_puts(" ");
+	serial_puts(__TIME__);
+	serial_puts("\n");
+#endif
 	serial_puts("Start address is :");
 	serial_put_hex(start_addr);
 	serial_puts("Address offset is:");

@@ -9,7 +9,7 @@ typedef struct {
 	unsigned char cpu_speed;
 	unsigned char phm_div;
 	unsigned char use_uart;
-	unsigned int  boudrate;
+	unsigned int  baudrate;
 
 	/* SDRAM args */
 	unsigned char bus_width;
