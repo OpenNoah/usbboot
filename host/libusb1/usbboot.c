@@ -61,6 +61,29 @@ int programStart2(libusb_device_handle *dev, uint32_t entry)
 				entry >> 16, entry & 0xffff, 0, 0, 0) != 0;
 }
 
+int transferData(libusb_device_handle *dev, uint32_t rw, uint32_t size, void *p)
+{
+	unsigned char ep = rw ? USBBOOT_EP_IN : USBBOOT_EP_OUT;
+	int progress = size >= BLOCK_SIZE;
+	while (size) {
+		size_t s = size >= BLOCK_SIZE ? BLOCK_SIZE : size;
+		// Bulk transfer
+		int len = 0, err;
+		if ((err = libusb_bulk_transfer(dev, ep, p, s, &len, 0)) || len != s) {
+			fprintf(stderr, "Error transferring data %u: %s\n", len, libusb_strerror(err));
+			return 1;
+		}
+		if (progress)
+			putchar('.');
+		fflush(stdout);
+		size -= s;
+		p += s;
+	}
+	if (progress)
+		putchar('\n');
+	return 0;
+}
+
 int readMem(libusb_device_handle *dev, uint32_t addr, uint32_t size, void *p)
 {
 	// Set start address
@@ -75,25 +98,7 @@ int readMem(libusb_device_handle *dev, uint32_t addr, uint32_t size, void *p)
 		return 2;
 	}
 
-	int progress = size >= BLOCK_SIZE;
-	while (size) {
-		size_t s = size >= BLOCK_SIZE ? BLOCK_SIZE : size;
-		// Bulk transfer
-		int len = 0, err;
-		if ((err = libusb_bulk_transfer(dev, USBBOOT_EP_IN, p, s, &len, 0)) || len != s) {
-			fprintf(stderr, "Error transferring data %u: %s\n", len, libusb_strerror(err));
-			return 3;
-		}
-		if (progress)
-			putchar('.');
-		fflush(stdout);
-		size -= s;
-		p += s;
-	}
-	if (progress)
-		putchar('\n');
-
-	return 0;
+	return transferData(dev, 1, size, p);
 }
 
 int uploadFile(libusb_device_handle *dev, uint32_t addr, uint32_t size, const char *file)
@@ -149,26 +154,7 @@ int writeMem(libusb_device_handle *dev, uint32_t addr, uint32_t size, const void
 	}
 #endif
 
-	// Block size of 4MiB
-	int progress = size >= BLOCK_SIZE;
-	while (size) {
-		size_t s = size >= BLOCK_SIZE ? BLOCK_SIZE : size;
-		// Bulk transfer
-		int len = 0, err;
-		if ((err = libusb_bulk_transfer(dev, USBBOOT_EP_OUT, (void *)p, s, &len, 0)) || len != s) {
-			fprintf(stderr, "Error transferring data: %s\n", libusb_strerror(err));
-			return 3;
-		}
-		if (progress)
-			putchar('.');
-		fflush(stdout);
-		size -= s;
-		p += s;
-	}
-	if (progress)
-		putchar('\n');
-
-	return 0;
+	return transferData(dev, 0, size, (void *)p);
 }
 
 int downloadFile(libusb_device_handle *dev, uint32_t addr, const char *file)
@@ -424,30 +410,34 @@ static int writeConfig(libusb_device_handle *dev, unsigned long addr, fw_args_t 
 	return writeMem(dev, addr, sizeof(*argv), argv);
 }
 
+int receiveHandshake(libusb_device_handle *dev, uint16_t *hs)
+{
+	uint16_t tmp[4];
+	if (!hs)
+		hs = tmp;
+
+	int err = transferData(dev, 1, 8, hs);
+	if (err)
+		fprintf(stderr, "Error receiving handshake\n");
+	return err;
+}
+
 static int uploadConfig(libusb_device_handle *dev, hand_t *argv)
 {
 	// Bulk transfer
-	uint32_t size = sizeof(*argv);
-	int len = 0, err;
-	if ((err = libusb_bulk_transfer(dev, USBBOOT_EP_OUT, (void *)argv, size, &len, 0)) || len != size) {
-		fprintf(stderr, "Error uploading configurations: %s\n", libusb_strerror(err));
+	if (transferData(dev, 0, sizeof(*argv), argv)) {
+		fprintf(stderr, "Error uploading configurations\n");
 		return 1;
 	}
 
-	if ((err = libusb_control_transfer(dev, 0x40, VR_CONFIGRATION, DS_hand, 0, 0, 0, 0))) {
+	int err = libusb_control_transfer(dev, 0x40, VR_CONFIGRATION, DS_hand, 0, 0, 0, 0);
+	if (err) {
 		fprintf(stderr, "Error applying configurations: %s\n", libusb_strerror(err));
 		return 2;
 	}
 
 	// Handshake packet
-	uint16_t hs[4];
-	size = sizeof(hs);
-	if ((err = libusb_bulk_transfer(dev, USBBOOT_EP_IN, (void *)hs, size, &len, 0)) || len != size) {
-		fprintf(stderr, "Error receiving handshake: %s\n", libusb_strerror(err));
-		return 1;
-	}
-
-	return 0;
+	return receiveHandshake(dev, NULL);
 }
 
 int systemInit(libusb_device_handle *dev, const char *fw, const char *boot, const char *cfg)

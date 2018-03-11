@@ -1,4 +1,4 @@
-SRC	:= main.c usbboot.c
+SRC	:= main.c usbboot.c nand.c
 PRG	:= usbboot
 
 S1FILE	?= ../../device/stage1/fw/fw.bin
@@ -18,7 +18,8 @@ MEMRUN	:= $(RESET); sudo ./$(PRG) cpu init $(S1FILE) "" $(CFGFILE) \
 	   read $(MEMADDR) `stat -c %s $(MEMFILE)` $(MEMTMP)
 
 CFLAGS	+= -O2 -Wall -Werror $(shell pkg-config --cflags libusb-1.0)
-CFLAGS	+= -I../../device/stage1/fw -I../../device/stage2/include
+#CFLAGS	+= -I../../device/stage1/fw
+CFLAGS	+= -I../../device/stage2/include
 LIBS	+= $(shell pkg-config --libs libusb-1.0)
 
 .PHONY: all

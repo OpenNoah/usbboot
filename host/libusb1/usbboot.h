@@ -26,3 +26,5 @@ int writeMem(libusb_device_handle *dev, uint32_t addr, uint32_t size, const void
 int downloadFile(libusb_device_handle *dev, uint32_t addr, const char *file);
 
 int systemInit(libusb_device_handle *dev, const char *fw, const char *boot, const char *cfg);
+
+int nandQuery(libusb_device_handle *dev, uint8_t cs);

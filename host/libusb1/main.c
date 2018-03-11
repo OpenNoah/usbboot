@@ -4,6 +4,25 @@
 #include <string.h>
 #include "usbboot.h"
 
+void nand_process(libusb_device_handle *dev, int *argcp, char ***argvp)
+{
+	int argc = *argcp;
+	char **argv = *argvp;
+
+	char *cmd = *argv;
+	if (++argv, !--argc)
+		return;
+	unsigned char cs = strtoul(*argv, NULL, 0);
+
+	if (strcmp(cmd, "query") == 0) {
+		if (nandQuery(dev, cs))
+			fprintf(stderr, "Error querying NAND info\n");
+	}
+
+	*argcp = argc;
+	*argvp = argv;
+}
+
 void process(libusb_device_handle *dev, int argc, char **argv)
 {
 	while (++argv, --argc) {
@@ -87,6 +106,10 @@ void process(libusb_device_handle *dev, int argc, char **argv)
 				return;
 			unsigned long v = strtoul(*argv, NULL, 0);
 			sleep(v);
+		} else if (strcmp(*argv, "nand") == 0) {
+			if (++argv, !--argc)
+				return;
+			nand_process(dev, &argc, &argv);
 		}
 	}
 }
