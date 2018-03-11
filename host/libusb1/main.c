@@ -14,20 +14,6 @@ void process(libusb_device_handle *dev, int argc, char **argv)
 		} else if (strcmp(*argv, "flush") == 0) {
 			if (flushCaches(dev))
 				fprintf(stderr, "Error flushing caches\n");
-#if 0
-		} else if (strcmp(*argv, "addr") == 0) {
-			if (++argv, !--argc)
-				return;
-			unsigned long addr = strtoul(*argv, NULL, 0);
-			if (setAddress(dev, addr))
-				fprintf(stderr, "Error setting address %s\n", *argv);
-		} else if (strcmp(*argv, "len") == 0) {
-			if (++argv, !--argc)
-				return;
-			unsigned long len = strtoul(*argv, NULL, 0);
-			if (setLength(dev, len))
-				fprintf(stderr, "Error setting data length %s\n", *argv);
-#endif
 		} else if (strcmp(*argv, "mdw") == 0) {
 			if (++argv, !--argc)
 				return;
@@ -77,13 +63,20 @@ void process(libusb_device_handle *dev, int argc, char **argv)
 			if (++argv, !--argc)
 				return;
 			unsigned long entry = strtoul(*argv, NULL, 0);
-			if (programStart1(dev, entry))
+			if (programStart2(dev, entry))
 				fprintf(stderr, "Error starting at %s\n", *argv);
-		} else if (strcmp(*argv, "fwcfg") == 0) {
+		} else if (strcmp(*argv, "init") == 0) {
 			if (++argv, !--argc)
 				return;
-			if (fwConfigFile(dev, *argv))
-				fprintf(stderr, "Error writing firmware configurations from %s\n", *argv);
+			char *fw = *argv;
+			if (++argv, !--argc)
+				return;
+			char *boot = *argv;
+			if (++argv, !--argc)
+				return;
+			char *cfg = *argv;
+			if (systemInit(dev, fw, boot, cfg))
+				fprintf(stderr, "Error initialising system\n");
 		} else if (strcmp(*argv, "usleep") == 0) {
 			if (++argv, !--argc)
 				return;

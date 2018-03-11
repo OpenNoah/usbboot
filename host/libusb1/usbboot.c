@@ -9,18 +9,15 @@
 #include <errno.h>
 #include <libusb.h>
 #include <configs.h>
+#include <usb_boot.h>
 #include "usbboot.h"
 
-#define FW_ARGS_ADDR	0x80002008
+#define FW_START_ADDR	0x80002000
+#define BOOT_START_ADDR	0x80000000
+#define BOOT_CODE_SIZE	0x00400000	// 4MiB
+#define ARGS_OFFSET	8
 
 #define BLOCK_SIZE	0x00400000	// 4MiB
-
-#define VR_GET_CPU_INFO		0x00
-#define VR_SET_DATA_ADDRESS	0x01
-#define VR_SET_DATA_LENGTH	0x02
-#define VR_FLUSH_CACHES		0x03
-#define VR_PROGRAM_START1	0x04
-#define VR_PROGRAM_START2	0x05
 
 int getCPUInfo(libusb_device_handle *dev, char *p)
 {
@@ -64,17 +61,17 @@ int programStart2(libusb_device_handle *dev, uint32_t entry)
 				entry >> 16, entry & 0xffff, 0, 0, 0) != 0;
 }
 
-int readMem(libusb_device_handle *dev, unsigned long addr, size_t size, void *p)
+int readMem(libusb_device_handle *dev, uint32_t addr, uint32_t size, void *p)
 {
 	// Set start address
 	if (setAddress(dev, addr)) {
-		fprintf(stderr, "Error setting data address 0x%08lx\n", addr);
+		fprintf(stderr, "Error setting data address 0x%08x\n", addr);
 		return 1;
 	}
 
 	// Set data length
 	if (setLength(dev, size)) {
-		fprintf(stderr, "Error setting data length %lu\n", size);
+		fprintf(stderr, "Error setting data length %u\n", size);
 		return 2;
 	}
 
@@ -99,9 +96,9 @@ int readMem(libusb_device_handle *dev, unsigned long addr, size_t size, void *p)
 	return 0;
 }
 
-int uploadFile(libusb_device_handle *dev, unsigned long addr, size_t size, const char *file)
+int uploadFile(libusb_device_handle *dev, uint32_t addr, uint32_t size, const char *file)
 {
-	printf("Uploading from 0x%08lx of size %lu to file %s...\n", addr, size, file);
+	printf("Uploading from 0x%08x of size %u to file %s...\n", addr, size, file);
 
 	// Open file for write
 	int fd = open(file, O_CREAT | O_RDWR);
@@ -136,11 +133,11 @@ int uploadFile(libusb_device_handle *dev, unsigned long addr, size_t size, const
 	return 0;
 }
 
-int writeMem(libusb_device_handle *dev, unsigned long addr, size_t size, const void *p)
+int writeMem(libusb_device_handle *dev, uint32_t addr, uint32_t size, const void *p)
 {
 	// Set start address
 	if (setAddress(dev, addr)) {
-		fprintf(stderr, "Error setting data address 0x%08lx\n", addr);
+		fprintf(stderr, "Error setting data address 0x%08x\n", addr);
 		return 1;
 	}
 
@@ -174,7 +171,7 @@ int writeMem(libusb_device_handle *dev, unsigned long addr, size_t size, const v
 	return 0;
 }
 
-int downloadFile(libusb_device_handle *dev, unsigned long addr, const char *file)
+int downloadFile(libusb_device_handle *dev, uint32_t addr, const char *file)
 {
 	// Get file size
 	struct stat st;
@@ -184,7 +181,7 @@ int downloadFile(libusb_device_handle *dev, unsigned long addr, const char *file
 	}
 	size_t size = st.st_size;
 
-	printf("Downloading file %s of size %lu to 0x%08lx...\n", file, size, addr);
+	printf("Downloading file %s of size %lu to 0x%08x...\n", file, size, addr);
 
 	// Open file for read
 	int fd = open(file, O_RDONLY);
@@ -212,7 +209,7 @@ int downloadFile(libusb_device_handle *dev, unsigned long addr, const char *file
 	return 0;
 }
 
-int fwConfigFile(libusb_device_handle *dev, const char *file)
+static int loadConfig(const char *file, fw_args_t *argv)
 {
 	// Initial fallback values for testing
 	fw_args_t args = {
@@ -339,7 +336,7 @@ int fwConfigFile(libusb_device_handle *dev, const char *file)
 		return 2;
 	}
 
-	printf("Firmware configurations:\n");
+	printf("Platform configurations:\n");
 	printf("\tCPU ID:                      JZ%x\n", args.cpu_id);
 	printf("\tExternal clock:              %u MHz\n", args.ext_clk);
 	printf("\tCPU speed:                   %u MHz\n", args.ext_clk * args.cpu_speed);
@@ -353,5 +350,47 @@ int fwConfigFile(libusb_device_handle *dev, const char *file)
 	printf("\tMobile SDRAM mode:           %s\n", args.is_mobile ? "yes" : "no");
 	printf("\tShared SDRAM bus:            %s\n", args.is_busshare ? "yes" : "no");
 	printf("\tDebug mode:                  %s\n", args.debug_ops > 0 ? "yes" : "no");
-	return writeMem(dev, FW_ARGS_ADDR, sizeof(args), &args);
+	memcpy(argv, &args, sizeof(args));
+	return 0;
+}
+
+static int writeConfig(libusb_device_handle *dev, unsigned long addr, fw_args_t *argv)
+{
+	return writeMem(dev, addr, sizeof(*argv), argv);
+}
+
+int systemInit(libusb_device_handle *dev, const char *fw, const char *boot, const char *cfg)
+{
+	fw_args_t args;
+	if (loadConfig(cfg, &args))
+		return 1;
+
+	// Stage 1, initialise clocks, UART and SDRAM
+	if (downloadFile(dev, FW_START_ADDR, fw))
+		return 2;
+	if (writeConfig(dev, FW_START_ADDR + ARGS_OFFSET, &args))
+		return 3;
+	if (programStart1(dev, FW_START_ADDR))
+		return 4;
+	usleep(100000);
+
+	// Optionally skip stage 2 (e.g. for memory test)
+	if (boot[0] == 0)
+		return 0;
+
+	// Calculate SDRAM size and boot firmware start address
+	uint32_t size = (1ul << (args.row_addr + args.col_addr)) *
+		((args.bank_num + 1) << 1) * (4 - (args.bus_width << 1));
+	uint32_t addr = BOOT_START_ADDR + size - BOOT_CODE_SIZE;
+
+	// Stage 2, initialise NAND, handle advanced USB requests
+	if (downloadFile(dev, addr, boot))
+		return 5;
+	if (writeConfig(dev, addr + ARGS_OFFSET, &args))
+		return 6;
+	if (flushCaches(dev))
+		return 7;
+	if (programStart2(dev, addr))
+		return 8;
+	return 0;
 }
