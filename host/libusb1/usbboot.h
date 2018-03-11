@@ -35,3 +35,4 @@ int nandInit(libusb_device_handle *dev, uint8_t cs);
 // opt: OOB_ECC, OOB_NO_ECC or NO_OOB
 int nandReadMem(libusb_device_handle *dev, uint8_t cs, uint8_t opt, uint32_t page, uint32_t num, void *p);
 int nandDump(libusb_device_handle *dev, uint8_t cs, uint8_t opt, uint32_t page, uint32_t num);
+int nandUploadFile(libusb_device_handle *dev, uint8_t cs, uint8_t opt, uint32_t page, uint32_t num, const char *file);

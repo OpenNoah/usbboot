@@ -25,9 +25,10 @@ void help(char *prg)
 		"\nNAND subcommands:\n"
 		"init                          | Initialise NAND chip (not used)\n"
 		"query                         | Query NAND chip IDs\n"
-		"dump [oob|noecc] page num     | Dump num pages starting from page\n"
+		"dump [oob|noecc] pg num       | Dump num pages from page pg\n"
 		"                              | oob:   Dump OOB data too\n"
 		"                              | noecc: Dump OOB data with ECC bytes masked\n"
+		"read [oob|noecc] pg num file  | Upload num pages from page pg to file\n"
 		"", prg);
 }
 
@@ -42,7 +43,7 @@ int nand_process(libusb_device_handle *dev, unsigned char cs, int *argcp, char *
 	} else if (strcmp(cmd, "init") == 0) {
 		if (nandInit(dev, cs))
 			fprintf(stderr, "Error initialising NAND %u\n", cs);
-	} else if (strcmp(cmd, "dump") == 0) {
+	} else if (strcmp(cmd, "dump") == 0 || strcmp(cmd, "read") == 0) {
 		if (++argv, !--argc)
 			goto errargs;
 		unsigned char opt = NO_OOB;
@@ -59,8 +60,13 @@ int nand_process(libusb_device_handle *dev, unsigned char cs, int *argcp, char *
 		if (++argv, !--argc)
 			goto errargs;
 		unsigned long num = strtoul(*argv, NULL, 0);
-		if (nandDump(dev, cs, opt, page, num))
-			fprintf(stderr, "Error reading NAND %u\n", cs);
+		if (strcmp(cmd, "read") == 0) {
+			if (++argv, !--argc)
+				goto errargs;
+			if (nandUploadFile(dev, cs, opt, page, num, *argv))
+				fprintf(stderr, "Error reading NAND %u\n", cs);
+		} else if (nandDump(dev, cs, opt, page, num))
+			fprintf(stderr, "Error dumping NAND %u\n", cs);
 	} else {
 		fprintf(stderr, "Invalid NAND subcommand: %s\n", cmd);
 		return -1;

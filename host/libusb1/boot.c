@@ -275,6 +275,8 @@ int systemInit(libusb_device_handle *dev, const char *fw, const char *boot)
 	if (checkConfig())
 		return 1;
 
+	if (fw[0] == 0)
+		goto stage2;
 	// Stage 1, initialise clocks, UART and SDRAM
 	if (downloadFile(dev, FW_START_ADDR, fw))
 		return 2;
@@ -284,16 +286,18 @@ int systemInit(libusb_device_handle *dev, const char *fw, const char *boot)
 		return 4;
 	usleep(100000);
 
-	// Optionally skip stage 2 (e.g. for memory test)
-	if (boot[0] == 0)
-		return 0;
-
+stage2:
+	if (boot[0] == 0) {
+		if (fw[0] == 0)
+			goto config;
+		else
+			return 0;
+	}
 	// Calculate SDRAM size and boot firmware start address
 	fw_args_t *args = &cfg_hand.fw_args;
 	uint32_t size = (1ul << (args->row_addr + args->col_addr)) *
 		((args->bank_num + 1) << 1) * (4 - (args->bus_width << 1));
 	uint32_t addr = BOOT_START_ADDR + size - BOOT_CODE_SIZE;
-
 	// Stage 2, initialise NAND, handle advanced USB requests
 	if (downloadFile(dev, addr, boot))
 		return 5;
@@ -303,6 +307,7 @@ int systemInit(libusb_device_handle *dev, const char *fw, const char *boot)
 		return 7;
 	if (programStart2(dev, addr))
 		return 8;
+config:
 	if (uploadConfig(dev))
 		return 9;
 	return 0;

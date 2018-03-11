@@ -108,7 +108,7 @@ int uploadFile(libusb_device_handle *dev, uint32_t addr, uint32_t size, const ch
 
 	// Resize file
 	if (ftruncate(fd, size)) {
-		fprintf(stderr, "Error truncating file: %s\n", strerror(errno));
+		fprintf(stderr, "Error resizing file: %s\n", strerror(errno));
 		close(fd);
 		return 2;
 	}
@@ -116,7 +116,7 @@ int uploadFile(libusb_device_handle *dev, uint32_t addr, uint32_t size, const ch
 	// Memory map
 	void *p = mmap(0, size, PROT_WRITE, MAP_SHARED, fd, 0);
 	if (p == MAP_FAILED) {
-		fprintf(stderr, "Error mapping file to memory: %s\n", strerror(errno));
+		fprintf(stderr, "Error mapping file: %s\n", strerror(errno));
 		close(fd);
 		return 3;
 	}
@@ -173,7 +173,7 @@ int downloadFile(libusb_device_handle *dev, uint32_t addr, const char *file)
 	// Memory map
 	void *p = mmap(0, size, PROT_READ, MAP_SHARED, fd, 0);
 	if (p == MAP_FAILED) {
-		fprintf(stderr, "Error mapping file to memory: %s\n", strerror(errno));
+		fprintf(stderr, "Error mapping file: %s\n", strerror(errno));
 		close(fd);
 		return 3;
 	}
