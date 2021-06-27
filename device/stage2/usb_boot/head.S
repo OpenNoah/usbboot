@@ -30,8 +30,8 @@ real_start:
 	// setup stack, jump to C code
 	//----------------------------------------------------
 	add	$sp, $20, 0x400000      // sp locate at start address + 4M
-	add	$t9, $20, 0x40          // t9 = c_main()
-	j	$t9
+	add	$25, $20, 0x40          // t9 = c_main()
+	j	$25
 	nop
 
 	.set reorder
